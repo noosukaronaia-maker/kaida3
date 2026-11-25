@@ -1,0 +1,2980 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カードRPG - 盗賊の冒険</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #121214;
+            color: #e0e0e0;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ヘッダー */
+        header {
+            background: rgba(20, 20, 25, 0.92);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            color: #ffca28;
+            letter-spacing: 1px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #aaa;
+            align-items: center;
+        }
+
+        .sound-btn {
+            background: #2c2f42;
+            color: #90caf9;
+            border: 1px solid #5c668a;
+            padding: 6px 11px;
+            font-weight: bold;
+            font-size: 0.78rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .sound-btn:hover {
+            background: #3b405a;
+        }
+
+        .sound-btn.muted {
+            color: #ef9a9a;
+            border-color: #7f4747;
+            background: #2b1d20;
+        }
+
+        /* メインゲームエリア */
+        #game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px 16px;
+            position: relative;
+            background: radial-gradient(circle at center, #1a1c29 0%, #0d0e15 100%);
+        }
+
+        /* 敵エリア */
+        #enemy-field {
+            display: flex;
+            justify-content: center;
+            gap: 22px;
+            min-height: 238px;
+            align-items: flex-start;
+        }
+
+        /* 中央メッセージ・ログ */
+        #log-container {
+            height: 68px;
+            background: rgba(0, 0, 0, 0.62);
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 6px 10px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.36;
+            margin: 6px 0;
+        }
+
+        .log-entry { margin-bottom: 2px; }
+        .log-player { color: #81c784; }
+        .log-enemy { color: #e57373; }
+        .log-skill { color: #64b5f6; }
+        .log-passive { color: #ce93d8; }
+        .log-system { color: #ffb74d; }
+
+        /* プレイヤーエリア：プレイヤーカードを中央付近に配置 */
+        #player-field {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: flex-end;
+            gap: 14px;
+            width: 100%;
+        }
+
+        #left-action-column {
+            justify-self: end;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 190px;
+            max-height: 274px;
+            overflow-y: auto;
+        }
+
+        .turn-banner {
+            background: rgba(255, 202, 40, 0.15);
+            border: 1px solid #ffca28;
+            color: #ffca28;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 4px 6px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .btn {
+            background: #2c2d3c;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 5px 7px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.74rem;
+            text-align: left;
+            transition: 0.18s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #3d3e52;
+            border-color: #666;
+        }
+
+        .btn.active {
+            border-color: #ffca28;
+            background: #383526;
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-title {
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-sub {
+            font-size: 0.6rem;
+            color: #aaa;
+            margin-top: 1px;
+            line-height: 1.2;
+        }
+
+        /* カードデザイン共通 */
+        .card {
+            width: 172px;
+            min-height: 262px;
+            background: #232533;
+            border: 2px solid #555;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        #player-card {
+            justify-self: center;
+        }
+
+        .card.has-passive-card {
+            border-color: #ba68c8;
+            box-shadow: 0 0 12px rgba(186, 104, 200, 0.28);
+        }
+
+        .card.targetable {
+            border-color: #ff4081;
+            cursor: pointer;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 64, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0); }
+        }
+
+        .card-header {
+            padding: 4px 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.45);
+            border-bottom: 1px solid #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .enemy-passive-banner {
+            background: linear-gradient(90deg, rgba(123, 31, 162, 0.88), rgba(171, 71, 188, 0.7));
+            color: #fff;
+            font-size: 0.66rem;
+            font-weight: bold;
+            padding: 3px 5px;
+            text-align: center;
+            border-bottom: 1px solid #9c27b0;
+            letter-spacing: 0.2px;
+            cursor: help;
+        }
+
+        .enemy-skill-box {
+            margin-top: 4px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(129, 199, 132, 0.35);
+            font-size: 0.86rem;
+            font-weight: bold;
+            text-align: center;
+            cursor: help;
+            letter-spacing: 0.2px;
+        }
+
+        .enemy-skill-box.stolen-skill {
+            border-color: rgba(239, 83, 80, 0.45);
+            background: rgba(239, 83, 80, 0.1);
+            cursor: default;
+        }
+
+        .enemy-skill-box.no-skill {
+            border-color: rgba(120, 120, 140, 0.25);
+            background: rgba(255, 255, 255, 0.02);
+            cursor: default;
+        }
+
+        .enemy-skill-box:not(.stolen-skill):not(.no-skill):hover,
+        .enemy-passive-banner:hover {
+            filter: brightness(1.2);
+        }
+
+        .card-image-area {
+            flex: 1;
+            min-height: 76px;
+            background-color: #1a1a24;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .card-image-area svg {
+            width: 100%;
+            height: 100%;
+            max-height: 92px;
+            display: block;
+        }
+
+        .fallback-img-text {
+            color: #666;
+            font-size: 0.72rem;
+            text-align: center;
+            padding: 5px;
+        }
+
+        .card-stats {
+            padding: 5px 6px;
+            background: rgba(0, 0, 0, 0.68);
+            border-top: 1px solid #333;
+            font-size: 0.68rem;
+        }
+
+        .stat-bar {
+            height: 6px;
+            background: #444;
+            border-radius: 3px;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+
+        .stat-fill-hp {
+            height: 100%;
+            background: #e57373;
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        .stat-fill-mp {
+            height: 100%;
+            background: #64b5f6;
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        .debuff-badge {
+            position: absolute;
+            top: 28px;
+            right: 4px;
+            background: rgba(211, 47, 47, 0.92);
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+            z-index: 5;
+        }
+
+        .success-rate-tag {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #4fc3f7;
+            border: 1px solid #4fc3f7;
+            font-size: 0.68rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        /* 右側：大きめの所持スキル＆パッシブグリッド */
+        #skill-grid-panel {
+            justify-self: start;
+            background: rgba(22, 25, 36, 0.92);
+            border: 1px solid #3f465e;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 540px;
+            height: 274px;
+        }
+
+        .skill-grid-header {
+            font-size: 0.78rem;
+            font-weight: bold;
+            color: #90caf9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333a4f;
+            padding-bottom: 4px;
+        }
+
+        #skill-grid-boxes {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .slot-box {
+            background: rgba(15, 17, 26, 0.75);
+            border: 1px dashed #3d445c;
+            border-radius: 7px;
+            padding: 7px 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            transition: border-color 0.15s, background 0.15s, transform 0.15s;
+        }
+
+        /* レベル別カラー（1:黒 / 2:青 / 3:赤 / 4:黄 / 5:紫） */
+        .slot-box.filled-skill.lv-color-1 {
+            background: #14151a;
+            border: 1px solid #4b5268;
+            color: #f5f5f5;
+        }
+        .slot-box.filled-skill.lv-color-2 {
+            background: #13294b;
+            border: 1px solid #42a5f5;
+            color: #e3f2fd;
+        }
+        .slot-box.filled-skill.lv-color-3 {
+            background: #471519;
+            border: 1px solid #ef5350;
+            color: #ffebee;
+        }
+        .slot-box.filled-skill.lv-color-4 {
+            background: #473b10;
+            border: 1px solid #ffca28;
+            color: #fffde7;
+        }
+        .slot-box.filled-skill.lv-color-5 {
+            background: #331547;
+            border: 1px solid #ab47bc;
+            color: #f3e5f5;
+        }
+
+        .slot-box.filled-skill {
+            cursor: grab;
+        }
+
+        .slot-box.filled-skill:active {
+            cursor: grabbing;
+        }
+
+        .slot-box.filled-skill.selected-slot {
+            outline: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+        }
+
+        .slot-box.filled-passive {
+            background: rgba(48, 28, 66, 0.9);
+            border: 1px solid #9c27b0;
+        }
+
+        .slot-box.drag-source {
+            opacity: 0.55;
+            transform: scale(0.97);
+        }
+
+        .slot-box.drag-target-valid {
+            border: 2px solid #4fc3f7 !important;
+            background: rgba(30, 136, 229, 0.25) !important;
+            box-shadow: 0 0 10px rgba(79, 195, 247, 0.45);
+        }
+
+        .slot-empty-label {
+            color: #555c75;
+            font-size: 0.72rem;
+            text-align: center;
+            margin: auto;
+        }
+
+        .slot-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slot-main.clickable-skill {
+            cursor: pointer;
+        }
+
+        .slot-main.disabled-slot {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .slot-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.88rem;
+            font-weight: bold;
+        }
+
+        .slot-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #fff;
+        }
+
+        .slot-mp {
+            font-size: 0.78rem;
+            color: #90caf9;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .passive-tag {
+            font-size: 0.68rem;
+            background: rgba(186, 104, 200, 0.25);
+            color: #e1bee7;
+            border: 1px solid rgba(186, 104, 200, 0.5);
+            padding: 1px 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .skill-lv-tag {
+            font-size: 0.68rem;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+
+        .lv-badge-1 { background: #000000; color: #ffffff; border: 1px solid #666; }
+        .lv-badge-2 { background: #1565c0; color: #ffffff; }
+        .lv-badge-3 { background: #c62828; color: #ffffff; }
+        .lv-badge-4 { background: #f9a825; color: #121214; }
+        .lv-badge-5 { background: #6a1b9a; color: #ffffff; }
+
+        .slot-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
+
+        .skill-discard-btn {
+            background: rgba(239, 83, 80, 0.2);
+            color: #ff8a80;
+            border: 1px solid rgba(239, 83, 80, 0.5);
+            border-radius: 4px;
+            padding: 2px 7px;
+            font-size: 0.66rem;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .skill-discard-btn:hover:not(:disabled) {
+            background: #e53935;
+            color: #fff;
+        }
+
+        .skill-discard-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        /* スキル・パッシブ内容表示ウィンドウ（ツールチップ） */
+        #info-tooltip {
+            position: fixed;
+            display: none;
+            max-width: 270px;
+            background: rgba(16, 18, 28, 0.96);
+            border: 1px solid #ffca28;
+            border-radius: 7px;
+            padding: 9px 11px;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.75);
+            z-index: 2000;
+            pointer-events: none;
+            font-size: 0.76rem;
+            line-height: 1.4;
+        }
+
+        #info-tooltip.passive-theme {
+            border-color: #ce93d8;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            font-size: 0.84rem;
+            color: #ffca28;
+            margin-bottom: 3px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        #info-tooltip.passive-theme .tooltip-title {
+            color: #e1bee7;
+        }
+
+        .tooltip-meta {
+            font-size: 0.68rem;
+            color: #90caf9;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-body {
+            color: #e0e0e0;
+            font-size: 0.74rem;
+            white-space: pre-line;
+        }
+
+        /* ポップアップ */
+        .damage-popup {
+            position: absolute;
+            font-weight: bold;
+            font-size: 1.4rem;
+            pointer-events: none;
+            animation: floatUp 0.8s forwards;
+            z-index: 100;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-30px); }
+        }
+
+        .popup-damage { color: #ff5252; text-shadow: 0 0 4px #000; }
+        .popup-heal { color: #69f0ae; text-shadow: 0 0 4px #000; }
+        .popup-passive { color: #e1bee7; text-shadow: 0 0 4px #000; }
+        .popup-system { color: #ffca28; text-shadow: 0 0 4px #000; }
+
+        /* モーダル汎用 */
+        .modal {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.88);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal.hidden { display: none; }
+
+        /* チュートリアルモーダル */
+        #tutorial-modal {
+            z-index: 1800;
+        }
+
+        .tutorial-card {
+            background: #1e2233;
+            border: 2px solid #ffca28;
+            border-radius: 10px;
+            padding: 22px 24px;
+            width: 100%;
+            max-width: 540px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85);
+        }
+
+        .tutorial-title {
+            font-size: 1.35rem;
+            font-weight: bold;
+            color: #ffca28;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .tutorial-list {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            font-size: 0.84rem;
+            line-height: 1.5;
+            color: #e6e8f0;
+            padding-left: 18px;
+        }
+
+        .tutorial-list strong {
+            color: #90caf9;
+        }
+
+        .tutorial-red-cta {
+            margin-top: 14px;
+            color: #ff5252;
+            font-weight: bold;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        .tutorial-footer {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        /* 破棄最終確認モーダル */
+        #confirm-discard-modal {
+            z-index: 1600;
+        }
+
+        .confirm-card {
+            background: #202332;
+            border: 2px solid #ef5350;
+            border-radius: 10px;
+            padding: 20px 22px;
+            width: 100%;
+            max-width: 390px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+        }
+
+        .confirm-title {
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: #ff8a80;
+            margin-bottom: 10px;
+        }
+
+        .confirm-target {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid #444b66;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+
+        .confirm-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .confirm-yes-btn {
+            background: #e53935;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .confirm-yes-btn:hover {
+            background: #ff5252;
+        }
+
+        .confirm-no-btn {
+            background: #3e4359;
+            color: #fff;
+            border: 1px solid #6b7294;
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .confirm-no-btn:hover {
+            background: #525875;
+        }
+
+        /* 枠超過：スキル破棄選択モーダル */
+        #overflow-modal {
+            z-index: 1500;
+        }
+
+        .overflow-card {
+            background: #1e2130;
+            border: 2px solid #ffca28;
+            border-radius: 10px;
+            padding: 18px 20px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .overflow-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ffca28;
+            margin-bottom: 6px;
+        }
+
+        .overflow-incoming {
+            background: rgba(100, 181, 246, 0.14);
+            border: 1px solid rgba(100, 181, 246, 0.45);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            color: #e3f2fd;
+            margin-bottom: 10px;
+        }
+
+        .overflow-sub {
+            font-size: 0.78rem;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+
+        .overflow-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+
+        .overflow-item-btn {
+            background: #2b2f42;
+            border: 1px solid #555c78;
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: 0.15s;
+        }
+
+        .overflow-item-btn:hover {
+            background: #3d425c;
+            border-color: #ff8a80;
+        }
+
+        .overflow-item-badge {
+            font-size: 0.68rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255, 138, 128, 0.2);
+            color: #ff8a80;
+            font-weight: bold;
+        }
+
+        .overflow-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
+        .overflow-cancel-btn {
+            background: #424242;
+            color: #fff;
+            border: 1px solid #777;
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 0.88rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .overflow-cancel-btn:hover {
+            background: #616161;
+        }
+
+        /* ショップ画面 */
+        #shop-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .shop-item {
+            background: #232533;
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .shop-item:hover:not(.disabled) {
+            border-color: #ffca28;
+            background: #2f3246;
+        }
+
+        .shop-item.disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .shop-item-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .shop-price { color: #ffca28; }
+        .shop-desc { font-size: 0.75rem; color: #aaa; }
+
+        .action-confirm-btn {
+            margin-top: 22px;
+            padding: 10px 30px;
+            font-size: 1rem;
+            background: #ffca28;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #121214;
+            transition: 0.2s;
+        }
+
+        .action-confirm-btn:hover { background: #ffe082; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>カードRPG - 盗賊の冒険</h1>
+    <div class="header-stats">
+        <span id="slot-count-header" style="color:#90caf9; font-weight:bold;">所持枠: 0 / 6</span>
+        <span id="gold-count" style="color:#ffca28; font-weight:bold;">所持金: 0 G</span>
+        <span id="kill-count">倒した敵: 0体</span>
+        <button id="sound-toggle-btn" class="sound-btn" onclick="toggleSound()">SE: ON</button>
+    </div>
+</header>
+
+<div id="game-container">
+    <!-- 敵エリア -->
+    <div id="enemy-field"></div>
+
+    <!-- ログ -->
+    <div id="log-container"></div>
+
+    <!-- プレイヤーエリア -->
+    <div id="player-field">
+        <!-- 左側：ターン表示＆初期スキル（スキルハンター・瞑想・はたく） -->
+        <div id="left-action-column">
+            <div id="turn-banner" class="turn-banner">あなたのターン</div>
+            <div id="exempt-skill-list" style="display:flex; flex-direction:column; gap:5px;"></div>
+        </div>
+
+        <!-- 中央：プレイヤーカード -->
+        <div id="player-card" class="card">
+            <div class="card-header">盗賊 (Player)</div>
+            <div id="player-img" class="card-image-area"></div>
+            <div class="card-stats">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>HP</span>
+                    <span id="player-hp-text">150/150</span>
+                </div>
+                <div class="stat-bar"><div id="player-hp-bar" class="stat-fill-hp"></div></div>
+                
+                <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span>MP</span>
+                    <span id="player-mp-text">150/150</span>
+                </div>
+                <div class="stat-bar"><div id="player-mp-bar" class="stat-fill-mp"></div></div>
+
+                <div style="margin-top:4px; color:#ccc;">
+                    <div>スキル倍率: <span id="player-skill-mult-text" style="color:#64b5f6;">x1</span></div>
+                </div>
+            </div>
+            <div id="player-debuff-badge" class="debuff-badge" style="display:none;">Debuff</div>
+        </div>
+
+        <!-- 右側：6枠の所持スキル＆パッシブグリッド -->
+        <div id="skill-grid-panel">
+            <div class="skill-grid-header">
+                <span>所持スキル・パッシブ（Lv色: 1黒 2青 3赤 4黄 5紫）</span>
+                <span id="skill-grid-count" style="color:#ffca28;">0 / 6</span>
+            </div>
+            <div id="skill-grid-boxes"></div>
+        </div>
+    </div>
+
+    <!-- カーソル合わせ詳細ウィンドウ -->
+    <div id="info-tooltip">
+        <div class="tooltip-title" id="tooltip-title"></div>
+        <div class="tooltip-meta" id="tooltip-meta"></div>
+        <div class="tooltip-body" id="tooltip-body"></div>
+    </div>
+
+    <!-- チュートリアルモーダル -->
+    <div id="tutorial-modal" class="modal hidden">
+        <div class="tutorial-card">
+            <div class="tutorial-title">遊び方・チュートリアル</div>
+            <ul class="tutorial-list">
+                <li><strong>基本の流れ:</strong> あなたのターンに左側の初期スキルや右側の奪ったスキルを選んで行動します。敵をすべて倒すと次のウェーブへ進みます。</li>
+                <li><strong>スキルハンター:</strong> 敵のスキルやパッシブを奪います。敵のHPが減っているほど奪取率が高くなります（最大100%）。</li>
+                <li><strong>瞑想＆はたく:</strong> 初期スキルの「瞑想」でMPを20回復、「はたく」で単体に30ダメージを与えられます。</li>
+                <li><strong>所持枠（最大6枠）と合成:</strong> 奪ったスキル・パッシブは右側の6枠に入ります。<strong>同じスキル・同じLv</strong>をドラッグ＆ドロップするとLvが上がり、Lv上昇ごとに消費MPが+10されます。</li>
+                <li><strong>ショップと強化:</strong> 敵を5体倒すごとにショップが開店します。ショップを閉じると敵全体が強化されます。</li>
+            </ul>
+            <div class="tutorial-red-cta">工夫してたくさん敵を倒し続けましょう！</div>
+            <div class="tutorial-footer">
+                <button class="action-confirm-btn" style="margin-top:0;" onclick="closeTutorial()">ゲームを始める</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- スキル・パッシブ破棄最終確認モーダル -->
+    <div id="confirm-discard-modal" class="modal hidden">
+        <div class="confirm-card">
+            <div class="confirm-title">本当に捨てますか？</div>
+            <div class="confirm-target" id="confirm-discard-target"></div>
+            <div class="confirm-buttons">
+                <button class="confirm-yes-btn" onclick="executeConfirmedDiscard()">捨てる</button>
+                <button class="confirm-no-btn" onclick="cancelDiscardConfirm()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 所持枠6超過時：破棄選択モーダル -->
+    <div id="overflow-modal" class="modal hidden">
+        <div class="overflow-card">
+            <div class="overflow-title">所持しているスキルを捨てますか？</div>
+            <div class="overflow-incoming" id="overflow-incoming-text"></div>
+            <div class="overflow-sub">枠（最大6）がいっぱいです。捨てるものを1つ選ぶと新しく獲得します（「やめる」で今回の獲得を破棄）：</div>
+            <div class="overflow-list" id="overflow-list"></div>
+            <div class="overflow-footer">
+                <button class="overflow-cancel-btn" onclick="cancelOverflowAcquire()">やめる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ショップモーダル（敵5体討伐ごとに登場） -->
+    <div id="shop-modal" class="modal hidden">
+        <div style="font-size: 1.5rem; color: #ffca28; font-weight: bold;">旅の強化ショップ</div>
+        <div style="font-size: 0.9rem; color: #ccc; margin-top: 4px;">
+            所持金: <span id="shop-gold-display" style="color:#ffca28; font-weight:bold;">0 G</span>
+        </div>
+        <div id="shop-grid"></div>
+        <button class="action-confirm-btn" onclick="closeShop()">ショップを閉じる</button>
+    </div>
+
+    <!-- ゲームオーバー画面 -->
+    <div id="game-over-modal" class="modal hidden">
+        <div id="game-over-title" style="font-size: 2.5rem; margin-bottom: 10px; color:#ef5350;">GAME OVER</div>
+        <div id="game-over-sub" style="color:#ccc;"></div>
+        <button class="action-confirm-btn" onclick="initGame()">もう一度プレイ</button>
+    </div>
+</div>
+
+<script>
+// --- ピクトグラム風シンプルSVGイラスト定義 ---
+const PICTOGRAM_SVGS = {
+    thief: `
+        <svg viewBox="0 0 120 90" aria-label="盗賊ピクトグラム">
+            <!-- フード＆頭 -->
+            <path d="M36 42 C36 22, 64 22, 64 42 Z" fill="#81c784"/>
+            <circle cx="50" cy="34" r="7" fill="#1a1a24"/>
+            <!-- 胴体＆マント -->
+            <path d="M32 76 L41 45 L59 45 L68 76 Z" fill="#81c784"/>
+            <!-- 短剣 -->
+            <polygon points="78,24 83,29 73,54 68,51" fill="#e0e0e0"/>
+            <rect x="65" y="51" width="12" height="4" rx="1" transform="rotate(25 71 53)" fill="#ffca28"/>
+            <rect x="63" y="55" width="4" height="9" rx="1.5" transform="rotate(25 65 59)" fill="#ffca28"/>
+        </svg>
+    `,
+    mage: `
+        <svg viewBox="0 0 120 90" aria-label="魔法使いピクトグラム">
+            <!-- とんがり帽 -->
+            <polygon points="50,12 31,38 69,38" fill="#64b5f6"/>
+            <rect x="27" y="37" width="46" height="4" rx="2" fill="#64b5f6"/>
+            <!-- 頭＆ローブ -->
+            <circle cx="50" cy="46" r="6" fill="#64b5f6"/>
+            <path d="M33 76 L41 53 L59 53 L67 76 Z" fill="#64b5f6"/>
+            <!-- 魔法の杖と星 -->
+            <line x1="80" y1="30" x2="80" y2="76" stroke="#ffca28" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="80" cy="24" r="7" fill="#ffca28"/>
+        </svg>
+    `,
+    warlock: `
+        <svg viewBox="0 0 120 90" aria-label="呪術師ピクトグラム">
+            <!-- 呪いの角/オーラ -->
+            <path d="M37 28 L43 37 M63 28 L57 37" stroke="#ce93d8" stroke-width="3" stroke-linecap="round"/>
+            <!-- 頭＆呪術ローブ -->
+            <circle cx="50" cy="43" r="8" fill="#ce93d8"/>
+            <circle cx="47" cy="42" r="1.8" fill="#1a1a24"/>
+            <circle cx="53" cy="42" r="1.8" fill="#1a1a24"/>
+            <path d="M32 76 L40 52 L60 52 L68 76 Z" fill="#ce93d8"/>
+            <!-- 呪いの杖と珠 -->
+            <line x1="82" y1="32" x2="82" y2="76" stroke="#ce93d8" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="82" cy="25" r="6.5" fill="none" stroke="#ef5350" stroke-width="3"/>
+        </svg>
+    `,
+    white_mage: `
+        <svg viewBox="0 0 120 90" aria-label="白魔術師ピクトグラム">
+            <!-- フード -->
+            <path d="M35 44 C35 23, 65 23, 65 44 Z" fill="#f5f5f5"/>
+            <circle cx="50" cy="36" r="6.5" fill="#1a1a24"/>
+            <!-- 白ローブ -->
+            <path d="M33 76 L41 46 L59 46 L67 76 Z" fill="#f5f5f5"/>
+            <!-- 回復の十字架＆杖 -->
+            <line x1="80" y1="22" x2="80" y2="76" stroke="#69f0ae" stroke-width="3.5" stroke-linecap="round"/>
+            <line x1="72" y1="30" x2="88" y2="30" stroke="#69f0ae" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+    `
+};
+
+// --- 効果音エンジン（Web Audio API） ---
+const SoundFX = (() => {
+    let ctx = null;
+    let enabled = true;
+
+    function getContext() {
+        if (!enabled) return null;
+        if (!ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) ctx = new AudioCtx();
+        }
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+        }
+        return ctx;
+    }
+
+    function playTone({ freq = 440, endFreq = null, type = 'sine', duration = 0.12, gain = 0.12, delay = 0 }) {
+        const ac = getContext();
+        if (!ac) return;
+
+        const startTime = ac.currentTime + delay;
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        if (endFreq !== null) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), startTime + duration);
+        }
+
+        g.gain.setValueAtTime(0.0001, startTime);
+        g.gain.linearRampToValueAtTime(gain, startTime + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+        osc.connect(g);
+        g.connect(ac.destination);
+
+        osc.start(startTime);
+        osc.stop(startTime + duration + 0.02);
+    }
+
+    function playNoise({ duration = 0.1, gain = 0.1, filterFreq = 1200, delay = 0 }) {
+        const ac = getContext();
+        if (!ac) return;
+
+        const startTime = ac.currentTime + delay;
+        const bufferSize = Math.max(1, Math.floor(ac.sampleRate * duration));
+        const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const src = ac.createBufferSource();
+        src.buffer = buffer;
+
+        const filter = ac.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(filterFreq, startTime);
+
+        const g = ac.createGain();
+        g.gain.setValueAtTime(gain, startTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+        src.connect(filter);
+        filter.connect(g);
+        g.connect(ac.destination);
+
+        src.start(startTime);
+        src.stop(startTime + duration + 0.02);
+    }
+
+    return {
+        isEnabled: () => enabled,
+        toggle() {
+            enabled = !enabled;
+            if (enabled) {
+                getContext();
+                playTone({ freq: 587.33, endFreq: 783.99, type: 'triangle', duration: 0.1, gain: 0.1 });
+            }
+            return enabled;
+        },
+        select() {
+            playTone({ freq: 660, endFreq: 820, type: 'sine', duration: 0.07, gain: 0.08 });
+        },
+        slap() {
+            playNoise({ duration: 0.07, gain: 0.16, filterFreq: 1800 });
+            playTone({ freq: 240, endFreq: 95, type: 'triangle', duration: 0.09, gain: 0.14 });
+        },
+        meteor() {
+            playNoise({ duration: 0.28, gain: 0.18, filterFreq: 650 });
+            playTone({ freq: 520, endFreq: 110, type: 'sawtooth', duration: 0.26, gain: 0.13 });
+        },
+        debuff() {
+            playTone({ freq: 440, endFreq: 220, type: 'sawtooth', duration: 0.2, gain: 0.11 });
+            playTone({ freq: 330, endFreq: 165, type: 'triangle', duration: 0.22, gain: 0.1, delay: 0.07 });
+        },
+        heal() {
+            playTone({ freq: 523.25, type: 'sine', duration: 0.12, gain: 0.11, delay: 0 });
+            playTone({ freq: 659.25, type: 'sine', duration: 0.12, gain: 0.11, delay: 0.08 });
+            playTone({ freq: 783.99, type: 'triangle', duration: 0.18, gain: 0.12, delay: 0.16 });
+        },
+        meditate() {
+            playTone({ freq: 440, type: 'sine', duration: 0.14, gain: 0.1, delay: 0 });
+            playTone({ freq: 587.33, type: 'sine', duration: 0.14, gain: 0.1, delay: 0.09 });
+            playTone({ freq: 880, type: 'sine', duration: 0.2, gain: 0.11, delay: 0.18 });
+        },
+        debug() {
+            playTone({ freq: 880, endFreq: 1320, type: 'square', duration: 0.09, gain: 0.1, delay: 0 });
+            playTone({ freq: 1046.5, endFreq: 1567.98, type: 'square', duration: 0.12, gain: 0.1, delay: 0.08 });
+        },
+        stealSuccess() {
+            playTone({ freq: 440, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0 });
+            playTone({ freq: 554.37, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0.07 });
+            playTone({ freq: 659.25, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0.14 });
+            playTone({ freq: 880, type: 'sine', duration: 0.18, gain: 0.14, delay: 0.21 });
+        },
+        stealFail() {
+            playTone({ freq: 260, endFreq: 170, type: 'sawtooth', duration: 0.16, gain: 0.1, delay: 0 });
+            playTone({ freq: 210, endFreq: 130, type: 'sawtooth', duration: 0.18, gain: 0.1, delay: 0.12 });
+        },
+        fuse() {
+            playTone({ freq: 523.25, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0 });
+            playTone({ freq: 659.25, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0.07 });
+            playTone({ freq: 783.99, type: 'triangle', duration: 0.09, gain: 0.12, delay: 0.14 });
+            playTone({ freq: 1046.5, type: 'sine', duration: 0.22, gain: 0.14, delay: 0.21 });
+        },
+        discard() {
+            playTone({ freq: 340, endFreq: 180, type: 'sine', duration: 0.12, gain: 0.1 });
+        },
+        enemyHit() {
+            playNoise({ duration: 0.11, gain: 0.15, filterFreq: 900 });
+            playTone({ freq: 190, endFreq: 75, type: 'sawtooth', duration: 0.15, gain: 0.13 });
+        },
+        enemyKill() {
+            playTone({ freq: 330, endFreq: 550, type: 'triangle', duration: 0.14, gain: 0.12 });
+        },
+        powerUp() {
+            playTone({ freq: 392.0, type: 'sawtooth', duration: 0.12, gain: 0.12, delay: 0 });
+            playTone({ freq: 523.25, type: 'sawtooth', duration: 0.12, gain: 0.12, delay: 0.1 });
+            playTone({ freq: 659.25, type: 'sawtooth', duration: 0.18, gain: 0.13, delay: 0.2 });
+        },
+        shopBuy() {
+            playTone({ freq: 987.77, type: 'sine', duration: 0.08, gain: 0.12, delay: 0 });
+            playTone({ freq: 1318.51, type: 'sine', duration: 0.16, gain: 0.12, delay: 0.07 });
+        },
+        modalToggle() {
+            playTone({ freq: 480, endFreq: 560, type: 'sine', duration: 0.08, gain: 0.08 });
+        },
+        gameOver() {
+            playTone({ freq: 392.0, type: 'sawtooth', duration: 0.18, gain: 0.12, delay: 0 });
+            playTone({ freq: 349.23, type: 'sawtooth', duration: 0.18, gain: 0.12, delay: 0.18 });
+            playTone({ freq: 311.13, type: 'sawtooth', duration: 0.18, gain: 0.12, delay: 0.36 });
+            playTone({ freq: 261.63, endFreq: 140, type: 'sawtooth', duration: 0.35, gain: 0.13, delay: 0.54 });
+        }
+    };
+})();
+
+function toggleSound() {
+    const on = SoundFX.toggle();
+    const btn = document.getElementById('sound-toggle-btn');
+    if (btn) {
+        btn.innerText = on ? 'SE: ON' : 'SE: OFF';
+        btn.classList.toggle('muted', !on);
+    }
+}
+
+function openTutorial() {
+    document.getElementById('tutorial-modal').classList.remove('hidden');
+}
+
+function closeTutorial() {
+    SoundFX.modalToggle();
+    document.getElementById('tutorial-modal').classList.add('hidden');
+}
+
+const MAX_HOLD_SLOTS = 6;
+const BASE_ENEMY_GOLD = 100;
+const GOLD_BONUS_PER_GROWTH = 50;
+
+// スキルレベルに応じた消費MP計算（Lv1基準 + (Lv-1)*10）
+function getSkillCostByLevel(baseCost, lv) {
+    const level = Math.max(1, lv || 1);
+    return (baseCost || 0) + (level - 1) * 10;
+}
+
+// スキルのレベル設定と消費MP同期（レベルが上がるごとに消費MP+10）
+function applySkillLevelCost(skObj, newLevel) {
+    if (!skObj) return;
+    if (typeof skObj.baseCost !== 'number') {
+        const currentLv = Math.max(1, skObj.level || 1);
+        skObj.baseCost = Math.max(0, (skObj.cost || 0) - (currentLv - 1) * 10);
+    }
+    const clampedLv = Math.max(1, newLevel || 1);
+    skObj.level = clampedLv;
+    skObj.cost = getSkillCostByLevel(skObj.baseCost, clampedLv);
+}
+
+// 現在の敵撃破獲得G（敵強化段階ごとに+50G）
+function getCurrentEnemyGoldReward() {
+    return BASE_ENEMY_GOLD + enemyGrowthStages * GOLD_BONUS_PER_GROWTH;
+}
+
+// レベル別カラークラス取得（1:黒 / 2:青 / 3:赤 / 4:黄 / 5:紫）
+function getLevelColorClass(lv) {
+    const clamped = Math.max(1, Math.min(5, lv || 1));
+    return `lv-color-${clamped}`;
+}
+
+function getLevelBadgeClass(lv) {
+    const clamped = Math.max(1, Math.min(5, lv || 1));
+    return `lv-badge-${clamped}`;
+}
+
+// デバフのレベルに応じた持続ターン・分母計算
+// 奇数Lv：ターン+1 / 偶数Lv：分母を1.1倍
+function getDebuffStatsByLevel(lv) {
+    const level = Math.max(1, lv || 1);
+    let oddBonus = 0;
+    let evenCount = 0;
+    for (let i = 2; i <= level; i++) {
+        if (i % 2 === 1) {
+            oddBonus += 1;
+        } else {
+            evenCount += 1;
+        }
+    }
+    const duration = 2 + oddBonus;
+    const divisor = 2 * Math.pow(1.1, evenCount);
+    return { duration, divisor };
+}
+
+// すべてのダメージに対するデバフ倍率を適用（重ね掛け廃止：最大1件のデバフ）
+function applyAllDamageDebuff(unit, dmg) {
+    if (!unit || !unit.debuffs || unit.debuffs.length === 0) return dmg;
+    const divisor = unit.debuffs[0].divisor || 2;
+    return Math.max(0, Math.floor(dmg / divisor));
+}
+
+// パッシブ所持判定ヘルパー
+function hasPassive(unit, passiveId) {
+    return !!(unit && Array.isArray(unit.passives) && unit.passives.some(p => p.id === passiveId));
+}
+
+// 死力・代償を全ダメージに適用する共通計算
+// ・代償：すべてのダメージ倍率に +1.5
+// ・死力：減少HP割合に応じてすべてのダメージ倍率を上昇（最大1.7倍）
+function applyAllDamagePassives(attacker, target, baseDmg) {
+    if (baseDmg <= 0) return 0;
+    let mult = 1;
+
+    if (hasPassive(attacker, 'sacrifice')) {
+        mult += 1.5;
+    }
+
+    if (hasPassive(attacker, 'desperation') && attacker && attacker.maxHp > 0) {
+        const hpRatio = Math.max(0, Math.min(1, attacker.hp / attacker.maxHp));
+        const desperationMult = 1 + (1 - hpRatio) * 0.7;
+        mult *= desperationMult;
+    }
+
+    if (hasPassive(attacker, 'follow_up') && target && target.debuffs && target.debuffs.length > 0) {
+        mult *= 2;
+    }
+
+    return Math.max(1, Math.floor(baseDmg * mult));
+}
+
+// 全ダメージパイプライン（パッシブ倍率 → プレイヤー被ダメ半減 → 全ダメージデバフ）
+function computeFinalDamage({ attacker, defender, baseAmount, isPlayerIncoming = false }) {
+    if (baseAmount <= 0) return 0;
+    let dmg = applyAllDamagePassives(attacker, defender, baseAmount);
+    if (isPlayerIncoming) {
+        dmg = calcDamageToPlayer(dmg);
+    }
+    dmg = applyAllDamageDebuff(attacker, dmg);
+    return Math.max(0, dmg);
+}
+
+// 回復スキル耐性計算（1 / (1 + 0.5 * 使用回数) で徐々に回復量が低下、敵全滅でリセット）
+function applyHealResistance(rawHeal, caster) {
+    const count = Math.max(0, healUsageCount || 0);
+    const rate = 1 / (1 + count * 0.5);
+    const resisted = Math.max(1, Math.floor(rawHeal * rate));
+    healUsageCount += 1;
+    const nextRatePct = Math.round((1 / (1 + healUsageCount * 0.5)) * 100);
+    addLog(`回復耐性（使用${healUsageCount}回目）：${caster.name} の回復量が ${resisted} に調整（次回回復効率 ${nextRatePct}%）。`, 'log-system');
+    return resisted;
+}
+
+// 敵全滅時の回復耐性リセット
+function resetHealResistanceOnWaveClear() {
+    if (healUsageCount > 0) {
+        healUsageCount = 0;
+        addLog('敵を全滅させたため、回復スキルの耐性がリセットされた！', 'log-system');
+    }
+}
+
+// 敵（白魔導士など）が味方（HPが最も減っている生存敵・自身含む）を選択
+function pickAllyHealTarget(caster) {
+    const aliveAllies = enemies.filter(en => en && en.hp > 0);
+    if (aliveAllies.length === 0) return caster;
+    aliveAllies.sort((a, b) => {
+        const lostA = a.maxHp - a.hp;
+        const lostB = b.maxHp - b.hp;
+        if (lostB !== lostA) return lostB - lostA;
+        return (a.hp / Math.max(1, a.maxHp)) - (b.hp / Math.max(1, b.maxHp));
+    });
+    return aliveAllies[0];
+}
+
+// --- スキル実行関数マップ（奪取時に確実に復元するためIDで管理） ---
+const SKILL_EXECUTORS = {
+    meteor: (user, target, skObj) => {
+        SoundFX.meteor();
+        const lv = (skObj && skObj.level) || 1;
+        const power = ((skObj && skObj.basePower) || 50) * (1 + (lv - 1) * 0.5);
+        const mult = user.isPlayer ? user.skillAtk : 1;
+        const baseSkillDmg = Math.floor(power * mult);
+        const finalDamage = computeFinalDamage({
+            attacker: user,
+            defender: target,
+            baseAmount: baseSkillDmg,
+            isPlayerIncoming: !user.isPlayer
+        });
+        target.hp = Math.max(0, target.hp - finalDamage);
+        addLog(`${user.name} の「メテオ${lv > 1 ? ` Lv.${lv}` : ''}」！ ${target.name} に ${finalDamage} ダメージ！`, user.isPlayer ? 'log-skill' : 'log-enemy');
+        showPopup(finalDamage, target.isPlayer ? 'player-card' : `enemy-${target.fieldId}`, 'popup-damage');
+        if (finalDamage > 0) {
+            triggerThornsOnAnyDamage(target, user);
+        }
+    },
+    atk_debuff: (user, target, skObj) => {
+        SoundFX.debuff();
+        const lv = (skObj && skObj.level) || 1;
+        const { duration, divisor } = getDebuffStatsByLevel(lv);
+        // 重ね掛け廃止：既存のデバフを上書き（1つだけ保持）
+        target.debuffs = [{ duration, divisor, level: lv }];
+        addLog(`${user.name} の「攻撃力デバフ${lv > 1 ? ` Lv.${lv}` : ''}」！ ${target.name} のすべてのダメージが 1/${divisor.toFixed(2)} に低下（${duration}ターン）！`, user.isPlayer ? 'log-skill' : 'log-enemy');
+        showPopup("DEBUFF!", target.isPlayer ? 'player-card' : `enemy-${target.fieldId}`, 'popup-system');
+    },
+    heal: (user, target, skObj) => {
+        SoundFX.heal();
+        const lv = (skObj && skObj.level) || 1;
+        const healBase = ((skObj && skObj.basePower) || 20) * (1 + (lv - 1) * 0.5);
+        const mult = user.isPlayer ? user.skillAtk : 1;
+        const rawHealAmt = Math.floor(healBase * mult);
+        const healAmt = applyHealResistance(rawHealAmt, user);
+
+        let healTarget = user;
+        if (!user.isPlayer) {
+            healTarget = pickAllyHealTarget(user);
+        } else if (target && target.isPlayer) {
+            healTarget = player;
+        }
+
+        const beforeHp = healTarget.hp;
+        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmt);
+        const actualHeal = healTarget.hp - beforeHp;
+
+        if (!user.isPlayer && healTarget !== user) {
+            addLog(`${user.name} の「ヒール${lv > 1 ? ` Lv.${lv}` : ''}」！ 味方の ${healTarget.name} のHPが ${actualHeal} 回復！`, 'log-enemy');
+        } else {
+            addLog(`${user.name} の「ヒール${lv > 1 ? ` Lv.${lv}` : ''}」！ ${healTarget.name} のHPが ${actualHeal} 回復！`, user.isPlayer ? 'log-skill' : 'log-enemy');
+        }
+        showPopup(`+${actualHeal}`, healTarget.isPlayer ? 'player-card' : `enemy-${healTarget.fieldId}`, 'popup-heal');
+    }
+};
+
+// --- パッシブスキル定義 ---
+const PASSIVE_MASTER = {
+    sacrifice: {
+        id: 'sacrifice',
+        name: '代償',
+        desc: '最大HPが半分になり、すべてのダメージ倍率が+1.5される。',
+        onAcquire: (unit) => {
+            unit.maxHp = Math.max(1, Math.floor(unit.maxHp / 2));
+            unit.hp = Math.max(1, Math.min(unit.hp, unit.maxHp));
+            addLog(`パッシブ「代償」発動！ ${unit.name} の最大HPが半分になり、全ダメージ倍率に+1.5された！`, 'log-passive');
+        }
+    },
+    desperation: {
+        id: 'desperation',
+        name: '死力',
+        desc: 'HPが減少しているほどすべての与ダメージ倍率が上昇する（最大1.7倍）。'
+    },
+    debuff_heal: {
+        id: 'debuff_heal',
+        name: 'デバフヒール',
+        desc: 'デバフ状態の相手がいると行動後にHPを20回復する。'
+    },
+    follow_up: {
+        id: 'follow_up',
+        name: '追い打ち',
+        desc: 'デバフ状態の相手への与ダメージが2倍になる。'
+    },
+    thorns: {
+        id: 'thorns',
+        name: 'トゲ',
+        desc: 'すべてのダメージを受けた時、攻撃してきた相手に20ダメージを与える。'
+    }
+};
+
+// --- 敵マスターデータ ---
+const ENEMY_MASTER = [
+    {
+        id: 'meteor',
+        name: '魔術師',
+        pictogramKey: 'mage',
+        image: 'image/card_A.png',
+        maxHp: 50,
+        hpGainPer5Turn: 25,
+        atk: 20,
+        passivePool: [
+            { id: 'sacrifice', rate: 0.20 },
+            { id: 'desperation', rate: 0.20 }
+        ],
+        skill: {
+            id: 'meteor',
+            name: 'メテオ',
+            baseCost: 10,
+            cost: 10,
+            basePower: 50,
+            level: 1,
+            desc: '相手にダメージを与える（基本威力50 × スキル攻撃力）。',
+            targetSelf: false,
+            execute: SKILL_EXECUTORS.meteor
+        }
+    },
+    {
+        id: 'atk_debuff',
+        name: '呪術師',
+        pictogramKey: 'warlock',
+        image: 'image/card_B.png',
+        maxHp: 50,
+        hpGainPer5Turn: 25,
+        atk: 20,
+        passivePool: [
+            { id: 'debuff_heal', rate: 0.10 },
+            { id: 'follow_up', rate: 0.10 }
+        ],
+        skill: {
+            id: 'atk_debuff',
+            name: '攻撃力デバフ',
+            baseCost: 10,
+            cost: 10,
+            level: 1,
+            desc: '相手の全ダメージを低下させる（Lv奇数:ターン+1 / Lv偶数:分母×1.1倍）。',
+            targetSelf: false,
+            execute: SKILL_EXECUTORS.atk_debuff
+        }
+    },
+    {
+        id: 'heal',
+        name: '白魔導士',
+        pictogramKey: 'white_mage',
+        image: 'image/card_C.png',
+        maxHp: 50,
+        hpGainPer5Turn: 25,
+        atk: 10,
+        passivePool: [
+            { id: 'thorns', rate: 0.10 }
+        ],
+        skill: {
+            id: 'heal',
+            name: 'ヒール',
+            baseCost: 10,
+            cost: 10,
+            basePower: 20,
+            level: 1,
+            desc: '自分または味方のHPを回復する（基本回復20 × スキル攻撃力）。',
+            targetSelf: true,
+            execute: SKILL_EXECUTORS.heal
+        }
+    }
+];
+
+// ゲーム状態
+let player = {};
+let enemies = [];
+let isPlayerTurn = true;
+let selectedAction = null;
+let killedCount = 0;
+let goldCount = 0;
+let enemyGrowthStages = 0;
+let healUsageCount = 0;
+let enemyIdCounter = 0;
+let afterShopCallback = null;
+let waveClearedHandled = false;
+let draggedSkillIndex = null;
+let overflowQueue = [];
+let onOverflowCompleteCallback = null;
+let actionTransitionLock = false;
+let pendingDiscardAction = null;
+
+// 強化段階に応じたスキルレベル抽選
+function rollEnemySkillLevel(stages) {
+    if (stages <= 0) return 1;
+    const r = Math.random();
+    if (stages === 1) {
+        return r < 0.25 ? 2 : 1;
+    }
+    if (stages === 2) {
+        if (r < 0.10) return 3;
+        if (r < 0.55) return 2;
+        return 1;
+    }
+    if (r < 0.20) return 5;
+    if (r < 0.45) return 4;
+    if (r < 0.70) return 3;
+    return 2;
+}
+
+// ショップ終了後の敵強化処理（撃破獲得Gも+50アップ・敵攻撃力も上昇・即座にUIへ反映）
+function applyPostShopEnemyPowerUp() {
+    enemyGrowthStages += 1;
+    const rewardGold = getCurrentEnemyGoldReward();
+    SoundFX.powerUp();
+    addLog(`★ ショップ終了！ 敵全体が強化された（強化段階: ${enemyGrowthStages} / 撃破獲得: ${rewardGold}G）！`, 'log-passive');
+
+    enemies.forEach((enemy) => {
+        const hpGain = enemy.hpGainPer5Turn || 25;
+        enemy.maxHp += hpGain;
+        enemy.hp += hpGain;
+        enemy.atk += 5;
+
+        const template = ENEMY_MASTER.find(t => t.id === enemy.id);
+        if (template && Array.isArray(template.passivePool)) {
+            const boost = 0.12 * enemyGrowthStages;
+            template.passivePool.forEach((entry) => {
+                const alreadyHas = enemy.passives.some(p => p.id === entry.id);
+                if (!alreadyHas) {
+                    const chance = Math.min(0.85, entry.rate + boost);
+                    if (Math.random() < chance) {
+                        const pMaster = PASSIVE_MASTER[entry.id];
+                        if (pMaster) {
+                            const pCopy = { ...pMaster };
+                            enemy.passives.push(pCopy);
+                            if (pCopy.onAcquire) {
+                                pCopy.onAcquire(enemy);
+                            }
+                            addLog(`${enemy.name} が新たにパッシブ「${pCopy.name}」を得た！`, 'log-passive');
+                        }
+                    }
+                }
+            });
+        }
+
+        if (enemy.skill) {
+            const currentLv = enemy.skill.level || 1;
+            const nextLv = Math.max(currentLv, rollEnemySkillLevel(enemyGrowthStages));
+            if (nextLv > currentLv) {
+                applySkillLevelCost(enemy.skill, nextLv);
+                addLog(`${enemy.name} のスキル「${enemy.skill.name}」が Lv.${nextLv} に強化された（消費MP ${enemy.skill.cost}）！`, 'log-enemy');
+            }
+        }
+
+        showPopup(`ATK/HP UP!`, `enemy-${enemy.fieldId}`, 'popup-passive');
+    });
+
+    updateUI();
+}
+
+// 初期スキル（所持枠制限の対象外：スキルハンター・瞑想・はたく）
+function isLimitExemptSkill(sk) {
+    return !!(sk && (sk.isHunter || sk.isMeditate || sk.isSlap || sk.undiscardable));
+}
+
+// 制限対象外スキルの所持スキル数＋パッシブ数の合計
+function getUsedSlotsCount() {
+    const countableSkills = Array.isArray(player.skills)
+        ? player.skills.filter(s => !isLimitExemptSkill(s)).length
+        : 0;
+    const passivesCount = Array.isArray(player.passives) ? player.passives.length : 0;
+    return countableSkills + passivesCount;
+}
+
+// 奪取スキルオブジェクトを安全に複製（Lvに応じた消費MPも維持）
+function cloneStolenSkill(rawSkill) {
+    const lv = rawSkill.level || 1;
+    const baseCost = typeof rawSkill.baseCost === 'number'
+        ? rawSkill.baseCost
+        : Math.max(0, (rawSkill.cost || 0) - (lv - 1) * 10);
+    return {
+        id: rawSkill.id,
+        name: rawSkill.name,
+        baseCost,
+        cost: getSkillCostByLevel(baseCost, lv),
+        basePower: rawSkill.basePower,
+        level: lv,
+        desc: rawSkill.desc,
+        targetSelf: !!rawSkill.targetSelf,
+        execute: rawSkill.execute || SKILL_EXECUTORS[rawSkill.id] || null
+    };
+}
+
+// 初期化
+function initGame(showTutorialOnStart = true) {
+    player = {
+        name: '盗賊',
+        isPlayer: true,
+        maxHp: 150,
+        hp: 150,
+        maxMp: 150,
+        mp: 150,
+        skillAtk: 1,
+        debuffs: [],
+        passives: [],
+        skills: [
+            {
+                id: 'hunter',
+                name: 'スキルハンター',
+                baseCost: 0,
+                cost: 0,
+                desc: '敵のスキル・パッシブを奪う。',
+                isHunter: true,
+                undiscardable: true,
+                targetSelf: false
+            },
+            {
+                id: 'meditate',
+                name: '瞑想',
+                baseCost: 0,
+                cost: 0,
+                desc: 'MPを20回復する。',
+                isMeditate: true,
+                undiscardable: true,
+                targetSelf: true,
+                execute: (user) => {
+                    SoundFX.meditate();
+                    const beforeMp = user.mp;
+                    user.mp = Math.min(user.maxMp, user.mp + 20);
+                    const gained = user.mp - beforeMp;
+                    addLog(`${user.name} の「瞑想」！ MPが ${gained} 回復した！`, 'log-skill');
+                    showPopup(`MP+${gained}`, 'player-card', 'popup-system');
+                }
+            },
+            {
+                id: 'slap',
+                name: 'はたく',
+                baseCost: 0,
+                cost: 0,
+                level: 1,
+                desc: '選んだ敵1体に 30 ダメージを与える。',
+                isSlap: true,
+                undiscardable: true,
+                targetSelf: false,
+                execute: (user, target) => {
+                    SoundFX.slap();
+                    const dmg = computeFinalDamage({
+                        attacker: user,
+                        defender: target,
+                        baseAmount: 30,
+                        isPlayerIncoming: false
+                    });
+                    target.hp = Math.max(0, target.hp - dmg);
+                    addLog(`${user.name} の「はたく」！ ${target.name} に ${dmg} ダメージ！`, 'log-player');
+                    showPopup(dmg, `enemy-${target.fieldId}`, 'popup-damage');
+                    if (dmg > 0) {
+                        triggerThornsOnAnyDamage(target, user);
+                    }
+                }
+            }
+        ]
+    };
+
+    enemies = [];
+    killedCount = 0;
+    goldCount = 0;
+    enemyGrowthStages = 0;
+    healUsageCount = 0;
+    isPlayerTurn = true;
+    selectedAction = null;
+    afterShopCallback = null;
+    waveClearedHandled = false;
+    draggedSkillIndex = null;
+    overflowQueue = [];
+    onOverflowCompleteCallback = null;
+    actionTransitionLock = false;
+    pendingDiscardAction = null;
+
+    hideTooltip();
+    document.getElementById('confirm-discard-modal').classList.add('hidden');
+    document.getElementById('overflow-modal').classList.add('hidden');
+    document.getElementById('game-over-modal').classList.add('hidden');
+    document.getElementById('shop-modal').classList.add('hidden');
+    clearLog();
+    addLog('ゲームが開始されました。（盗賊 HP:150 / MP:150 / 所持枠上限6）', 'log-system');
+    
+    setupImage('player-img', 'image/mycard.png', 'thief');
+
+    spawnEnemies();
+    updateUI();
+
+    if (showTutorialOnStart) {
+        openTutorial();
+    } else {
+        document.getElementById('tutorial-modal').classList.add('hidden');
+    }
+}
+
+// ツールチップ表示・移動・非表示
+function showTooltip(e, title, meta, body, isPassive = false) {
+    const tip = document.getElementById('info-tooltip');
+    document.getElementById('tooltip-title').innerText = title;
+    document.getElementById('tooltip-meta').innerText = meta || '';
+    document.getElementById('tooltip-body').innerText = body || '';
+    tip.classList.toggle('passive-theme', !!isPassive);
+    tip.style.display = 'block';
+    positionTooltip(e);
+}
+
+function positionTooltip(e) {
+    const tip = document.getElementById('info-tooltip');
+    if (tip.style.display !== 'block') return;
+    const offset = 14;
+    let left = e.clientX + offset;
+    let top = e.clientY + offset;
+    const rect = tip.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth - 10) {
+        left = Math.max(10, e.clientX - rect.width - offset);
+    }
+    if (top + rect.height > window.innerHeight - 10) {
+        top = Math.max(10, e.clientY - rect.height - offset);
+    }
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+}
+
+function hideTooltip() {
+    const tip = document.getElementById('info-tooltip');
+    if (tip) tip.style.display = 'none';
+}
+
+// 敵生成（1〜2体 + 強化段階に応じたパッシブ・スキルLv抽選）
+function spawnEnemies() {
+    waveClearedHandled = false;
+    const count = Math.floor(Math.random() * 2) + 1;
+    const passiveBoost = 0.12 * enemyGrowthStages;
+    const hpBoostPerStage = enemyGrowthStages;
+
+    for (let i = 0; i < count; i++) {
+        const template = ENEMY_MASTER[Math.floor(Math.random() * ENEMY_MASTER.length)];
+        enemyIdCounter++;
+
+        const rolledPassives = [];
+        if (template.passivePool) {
+            template.passivePool.forEach(entry => {
+                const rate = Math.min(0.85, entry.rate + passiveBoost);
+                if (Math.random() < rate) {
+                    const pMaster = PASSIVE_MASTER[entry.id];
+                    if (pMaster) {
+                        rolledPassives.push({ ...pMaster });
+                    }
+                }
+            });
+        }
+
+        const hpGain = (template.hpGainPer5Turn || 25) * hpBoostPerStage;
+        const scaledMaxHp = template.maxHp + hpGain;
+        const scaledAtk = template.atk + 5 * hpBoostPerStage;
+        const skillLv = rollEnemySkillLevel(enemyGrowthStages);
+
+        let enemySkill = null;
+        if (template.skill) {
+            enemySkill = { ...template.skill };
+            applySkillLevelCost(enemySkill, skillLv);
+        }
+
+        const enemyObj = {
+            fieldId: enemyIdCounter,
+            id: template.id,
+            name: template.name,
+            pictogramKey: template.pictogramKey,
+            image: template.image,
+            maxHp: scaledMaxHp,
+            hp: scaledMaxHp,
+            hpGainPer5Turn: template.hpGainPer5Turn || 25,
+            atk: scaledAtk,
+            skillAtk: 1,
+            debuffs: [],
+            passives: rolledPassives,
+            skill: enemySkill,
+            stolen: false
+        };
+
+        rolledPassives.forEach(p => {
+            if (p.onAcquire) {
+                p.onAcquire(enemyObj);
+            }
+        });
+
+        enemies.push(enemyObj);
+
+        if (rolledPassives.length > 0) {
+            const pNames = rolledPassives.map(p => p.name).join('、');
+            addLog(`${enemyObj.name} はパッシブ「${pNames}」を持っている！`, 'log-passive');
+        }
+    }
+    addLog(`敵が ${count} 体 現れた！`, 'log-system');
+}
+
+// 敵全滅後の進行（回復耐性リセット → 5体ごとショップ／それ以外は次ウェーブ）
+function handleWaveCleared() {
+    if (waveClearedHandled) return;
+    waveClearedHandled = true;
+    hideTooltip();
+    resetHealResistanceOnWaveClear();
+
+    const proceedNextWave = () => {
+        spawnEnemies();
+        actionTransitionLock = false;
+        isPlayerTurn = true;
+        addLog(`新たな敵が現れた！ あなたのターンです。`, 'log-system');
+        updateUI();
+    };
+
+    if (killedCount > 0 && killedCount % 5 === 0) {
+        openShop(proceedNextWave);
+    } else {
+        proceedNextWave();
+    }
+}
+
+// ピクトグラムSVG描画（外部画像があれば上書き可能にしつつ、基本はシンプルなピクトグラムを表示）
+function setupImage(elementId, src, pictogramKey) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.style.backgroundImage = 'none';
+    el.innerHTML = PICTOGRAM_SVGS[pictogramKey] || `<div class="fallback-img-text">${pictogramKey}</div>`;
+
+    if (src) {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+            el.style.backgroundImage = `url('${src}')`;
+            el.innerHTML = '';
+        };
+    }
+}
+
+// 敵カードに表示する攻撃力（攻撃力の2分の1を表示）
+function getEnemyDisplayedAtk(enemy) {
+    return Math.floor(Math.max(0, Number(enemy.atk) || 0) / 2);
+}
+
+// トゲパッシブ（すべてのダメージを受けた際の反撃＆即時撃破反映）
+function triggerThornsOnAnyDamage(defender, attacker) {
+    if (!defender || !attacker || attacker.hp <= 0 || defender === attacker) return;
+    if (hasPassive(defender, 'thorns')) {
+        SoundFX.enemyHit();
+        const thornDmg = computeFinalDamage({
+            attacker: defender,
+            defender: attacker,
+            baseAmount: 20,
+            isPlayerIncoming: !defender.isPlayer
+        });
+        attacker.hp = Math.max(0, attacker.hp - thornDmg);
+        addLog(`${defender.name} のパッシブ「トゲ」発動！ ${attacker.name} に ${thornDmg} 反撃ダメージ！`, 'log-passive');
+        showPopup(thornDmg, attacker.isPlayer ? 'player-card' : `enemy-${attacker.fieldId}`, 'popup-passive');
+
+        if (!attacker.isPlayer && attacker.hp <= 0) {
+            checkDeaths();
+            updateUI();
+            if (enemies.length === 0 && !waveClearedHandled) {
+                actionTransitionLock = false;
+                setTimeout(() => handleWaveCleared(), 450);
+            }
+        }
+    }
+}
+
+// プレイヤーへの被ダメージ計算式
+function calcDamageToPlayer(enemyAttackPower) {
+    return Math.max(0, Math.floor(enemyAttackPower / 2));
+}
+
+// 同じスキルIDかつ同じレベル帯か判定
+function canFusePair(skA, skB) {
+    if (!skA || !skB || isLimitExemptSkill(skA) || isLimitExemptSkill(skB)) return false;
+    if (skA.id !== skB.id) return false;
+    const lvA = skA.level || 1;
+    const lvB = skB.level || 1;
+    return lvA === lvB;
+}
+
+// スキル合成（ドラッグ＆ドロップで同じID・同じレベル帯のスキルを合成／Lv上昇ごとに消費MP+10）
+function fuseSkillsByIndices(sourceIdx, targetIdx) {
+    if (!isPlayerTurn || sourceIdx === targetIdx) return;
+    const skA = player.skills[sourceIdx];
+    const skB = player.skills[targetIdx];
+    if (!skA || !skB || isLimitExemptSkill(skA) || isLimitExemptSkill(skB)) return;
+
+    if (skA.id !== skB.id) {
+        SoundFX.stealFail();
+        addLog(`同じスキル同士でないと合成できません。`, 'log-system');
+        return;
+    }
+
+    const lvA = skA.level || 1;
+    const lvB = skB.level || 1;
+    if (lvA !== lvB) {
+        SoundFX.stealFail();
+        addLog(`同じレベル帯（Lv.${lvA} と Lv.${lvB}）のスキル同士でないと合成できません。`, 'log-system');
+        return;
+    }
+
+    const nextLv = lvB + 1;
+    applySkillLevelCost(skB, nextLv);
+
+    if (selectedAction && (selectedAction.skillData === skA || selectedAction.skillData === skB)) {
+        selectedAction = null;
+    }
+
+    player.skills.splice(sourceIdx, 1);
+    SoundFX.fuse();
+    addLog(`合成成功！「${skB.name}」が Lv.${skB.level} に強化された（消費MP ${skB.cost}）！`, 'log-skill');
+    updateUI();
+}
+
+// スキル・パッシブ破棄の最終確認ダイアログを開く
+function promptDiscardSkill(index) {
+    if (!isPlayerTurn) return;
+    const targetSk = player.skills[index];
+    if (!targetSk || isLimitExemptSkill(targetSk)) return;
+    hideTooltip();
+    SoundFX.modalToggle();
+    const lv = targetSk.level || 1;
+    pendingDiscardAction = { type: 'skill', index };
+    document.getElementById('confirm-discard-target').innerText = `スキル：「${targetSk.name} Lv.${lv}（MP ${targetSk.cost}）」`;
+    document.getElementById('confirm-discard-modal').classList.remove('hidden');
+}
+
+function promptDiscardPassive(index) {
+    if (!isPlayerTurn) return;
+    const targetP = player.passives[index];
+    if (!targetP) return;
+    hideTooltip();
+    SoundFX.modalToggle();
+    pendingDiscardAction = { type: 'passive', index };
+    document.getElementById('confirm-discard-target').innerText = `パッシブ：「${targetP.name}」`;
+    document.getElementById('confirm-discard-modal').classList.remove('hidden');
+}
+
+function cancelDiscardConfirm() {
+    SoundFX.modalToggle();
+    pendingDiscardAction = null;
+    document.getElementById('confirm-discard-modal').classList.add('hidden');
+}
+
+function executeConfirmedDiscard() {
+    if (!pendingDiscardAction) return;
+    const { type, index } = pendingDiscardAction;
+    pendingDiscardAction = null;
+    document.getElementById('confirm-discard-modal').classList.add('hidden');
+
+    if (type === 'skill') {
+        const removed = player.skills[index];
+        if (!removed || isLimitExemptSkill(removed)) return;
+        if (selectedAction && selectedAction.skillData === removed) {
+            selectedAction = null;
+        }
+        player.skills.splice(index, 1);
+        SoundFX.discard();
+        addLog(`スキル「${removed.name}」を捨てた。`, 'log-system');
+    } else if (type === 'passive') {
+        const removed = player.passives[index];
+        if (!removed) return;
+        player.passives.splice(index, 1);
+        SoundFX.discard();
+        addLog(`パッシブ「${removed.name}」を捨てた。`, 'log-passive');
+    }
+    updateUI();
+}
+
+// --- 所持枠6超過時の破棄選択キュー処理 ---
+function processOverflowQueue(itemsToProcess, doneCallback) {
+    overflowQueue = Array.isArray(itemsToProcess) ? [...itemsToProcess] : [];
+    onOverflowCompleteCallback = doneCallback || null;
+    showNextOverflowPrompt();
+}
+
+function showNextOverflowPrompt() {
+    if (overflowQueue.length === 0) {
+        document.getElementById('overflow-modal').classList.add('hidden');
+        updateUI();
+        if (onOverflowCompleteCallback) {
+            const cb = onOverflowCompleteCallback;
+            onOverflowCompleteCallback = null;
+            cb();
+        }
+        return;
+    }
+
+    const current = overflowQueue[0];
+
+    if (getUsedSlotsCount() < MAX_HOLD_SLOTS) {
+        grantOverflowItem(current);
+        overflowQueue.shift();
+        showNextOverflowPrompt();
+        return;
+    }
+
+    hideTooltip();
+    const modal = document.getElementById('overflow-modal');
+    const incomingEl = document.getElementById('overflow-incoming-text');
+    const listEl = document.getElementById('overflow-list');
+
+    const kindLabel = current.kind === 'passive' ? 'パッシブスキル' : 'スキル';
+    const lvLabel = current.kind === 'skill' && (current.data.level || 1) > 1 ? ` Lv.${current.data.level}` : '';
+    const remainNote = overflowQueue.length > 1 ? `（残り超過処理: ${overflowQueue.length}件）` : '';
+    incomingEl.innerText = `奪った${kindLabel}：「${current.data.name}${lvLabel}」${remainNote}`;
+
+    listEl.innerHTML = '';
+
+    player.skills.forEach((sk, idx) => {
+        if (isLimitExemptSkill(sk)) return;
+        const lv = sk.level || 1;
+        const btn = document.createElement('button');
+        btn.className = 'overflow-item-btn';
+        btn.innerHTML = `
+            <span>スキル：${sk.name} Lv.${lv}（MP ${sk.cost}）</span>
+            <span class="overflow-item-badge">これを捨てる</span>
+        `;
+        btn.onclick = () => {
+            if (selectedAction && selectedAction.skillData === sk) {
+                selectedAction = null;
+            }
+            player.skills.splice(idx, 1);
+            SoundFX.discard();
+            addLog(`所持枠確保のためスキル「${sk.name} Lv.${lv}」を捨てた。`, 'log-system');
+            grantOverflowItem(current);
+            overflowQueue.shift();
+            showNextOverflowPrompt();
+        };
+        listEl.appendChild(btn);
+    });
+
+    player.passives.forEach((p, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'overflow-item-btn';
+        btn.style.borderColor = '#9c27b0';
+        btn.innerHTML = `
+            <span style="color:#f3e5f5;">パッシブ：${p.name}</span>
+            <span class="overflow-item-badge">これを捨てる</span>
+        `;
+        btn.onclick = () => {
+            player.passives.splice(idx, 1);
+            SoundFX.discard();
+            addLog(`所持枠確保のためパッシブ「${p.name}」を捨てた。`, 'log-passive');
+            grantOverflowItem(current);
+            overflowQueue.shift();
+            showNextOverflowPrompt();
+        };
+        listEl.appendChild(btn);
+    });
+
+    modal.classList.remove('hidden');
+}
+
+function grantOverflowItem(entry) {
+    if (!entry) return;
+    if (entry.kind === 'skill') {
+        player.skills.push(cloneStolenSkill(entry.data));
+        SoundFX.stealSuccess();
+        addLog(`スキル「${entry.data.name}」を獲得した！`, 'log-skill');
+    } else if (entry.kind === 'passive') {
+        const pCopy = { ...entry.data };
+        player.passives.push(pCopy);
+        SoundFX.stealSuccess();
+        addLog(`パッシブ「${pCopy.name}」を獲得した！`, 'log-passive');
+        if (pCopy.onAcquire) {
+            pCopy.onAcquire(player);
+        }
+    }
+}
+
+function cancelOverflowAcquire() {
+    if (overflowQueue.length === 0) return;
+    const skipped = overflowQueue.shift();
+    const kindLabel = skipped.kind === 'passive' ? 'パッシブ' : 'スキル';
+    SoundFX.discard();
+    addLog(`「やめる」を選択：奪った${kindLabel}「${skipped.data.name}」を捨てた。`, 'log-system');
+    showNextOverflowPrompt();
+}
+
+// スキルの詳細説明文生成（ツールチップ用）
+function getSkillDetailText(sk) {
+    const lv = sk.level || 1;
+    if (sk.isMeditate) {
+        return `自分のMPを 20 回復する（消費MP 0）。`;
+    }
+    if (sk.isSlap) {
+        return `選んだ敵1体に 30 ダメージを与える（全ダメージ倍率・デバフ適用）。`;
+    }
+    if (sk.isHunter) {
+        return `敵のスキルやパッシブを奪う。敵のHPが減っているほど奪取率が高くなる（15%〜100%）。`;
+    }
+    if (sk.id === 'atk_debuff') {
+        const { duration, divisor } = getDebuffStatsByLevel(lv);
+        return `相手のすべてのダメージを 1/${divisor.toFixed(2)} にする（効果時間: ${duration}ターン／重ね掛け不可）。`;
+    }
+    if (sk.basePower) {
+        const scaledBase = Math.floor(sk.basePower * (1 + (lv - 1) * 0.5));
+        const total = scaledBase * player.skillAtk;
+        if (sk.targetSelf) {
+            const effRate = Math.round((1 / (1 + healUsageCount * 0.5)) * 100);
+            return `自分のHPを回復する（基準${total} × 現在の回復耐性${effRate}%／敵全滅でリセット）。`;
+        }
+        return `選んだ敵1体に ${total} ダメージを与える（基本${scaledBase} × スキル倍率${player.skillAtk}）。`;
+    }
+    return sk.desc || '';
+}
+
+// UI全体更新
+function updateUI() {
+    player.hp = Math.min(player.hp, player.maxHp);
+    player.mp = Math.min(player.mp, player.maxMp);
+    document.getElementById('player-hp-text').innerText = `${player.hp}/${player.maxHp}`;
+    document.getElementById('player-hp-bar').style.width = `${(player.hp / player.maxHp) * 100}%`;
+    
+    document.getElementById('player-mp-text').innerText = `${player.mp}/${player.maxMp}`;
+    document.getElementById('player-mp-bar').style.width = `${(player.mp / player.maxMp) * 100}%`;
+
+    document.getElementById('player-skill-mult-text').innerText = `x${player.skillAtk}`;
+
+    const usedSlots = getUsedSlotsCount();
+    document.getElementById('slot-count-header').innerText = `所持枠: ${usedSlots} / ${MAX_HOLD_SLOTS}`;
+    document.getElementById('skill-grid-count').innerText = `${usedSlots} / ${MAX_HOLD_SLOTS}`;
+
+    // ターン表示
+    const banner = document.getElementById('turn-banner');
+    if (isPlayerTurn) {
+        banner.innerText = `あなたのターン`;
+        banner.style.opacity = '1';
+    } else {
+        banner.innerText = `敵のターン中...`;
+        banner.style.opacity = '0.5';
+    }
+
+    const pBadge = document.getElementById('player-debuff-badge');
+    if (player.debuffs.length > 0) {
+        const divVal = (player.debuffs[0].divisor || 2).toFixed(2).replace(/\.00$/, '');
+        pBadge.style.display = 'block';
+        pBadge.innerText = `DMG 1/${divVal}`;
+    } else {
+        pBadge.style.display = 'none';
+    }
+
+    // 左側：初期スキル（スキルハンター・瞑想・はたく）描画
+    const exemptContainer = document.getElementById('exempt-skill-list');
+    exemptContainer.innerHTML = '';
+    player.skills.forEach((sk) => {
+        if (!isLimitExemptSkill(sk)) return;
+        const btn = document.createElement('button');
+        btn.className = `btn ${selectedAction && selectedAction.skillData === sk ? 'active' : ''}`;
+        btn.disabled = !isPlayerTurn || (sk.cost > player.mp);
+        btn.onclick = () => selectAction('skill', sk);
+        btn.onmouseenter = (e) => showTooltip(e, sk.name, `消費MP: ${sk.cost} / 初期スキル`, getSkillDetailText(sk), false);
+        btn.onmousemove = positionTooltip;
+        btn.onmouseleave = hideTooltip;
+        btn.innerHTML = `
+            <div class="btn-title">
+                <span>${sk.name}</span>
+                <span style="font-size:0.64rem; color:#64b5f6;">MP ${sk.cost}</span>
+            </div>
+            <div class="btn-sub">${sk.desc}</div>
+        `;
+        exemptContainer.appendChild(btn);
+    });
+
+    // 右側：大きめの6枠グリッド描画
+    const combinedItems = [];
+    player.skills.forEach((sk, idx) => {
+        if (!isLimitExemptSkill(sk)) {
+            combinedItems.push({ kind: 'skill', data: sk, index: idx });
+        }
+    });
+    player.passives.forEach((p, idx) => {
+        combinedItems.push({ kind: 'passive', data: p, index: idx });
+    });
+
+    const gridEl = document.getElementById('skill-grid-boxes');
+    gridEl.innerHTML = '';
+
+    for (let slot = 0; slot < MAX_HOLD_SLOTS; slot++) {
+        const box = document.createElement('div');
+        const entry = combinedItems[slot];
+
+        if (!entry) {
+            box.className = 'slot-box';
+            box.innerHTML = `<div class="slot-empty-label">空き枠 ${slot + 1}</div>`;
+            gridEl.appendChild(box);
+            continue;
+        }
+
+        if (entry.kind === 'skill') {
+            const sk = entry.data;
+            const idx = entry.index;
+            const isSelected = !!(selectedAction && selectedAction.skillData === sk);
+            const canUse = isPlayerTurn && (sk.cost <= player.mp);
+            const lv = sk.level || 1;
+            const lvColorClass = getLevelColorClass(lv);
+            const lvBadgeClass = getLevelBadgeClass(lv);
+
+            box.className = `slot-box filled-skill ${lvColorClass} ${isSelected ? 'selected-slot' : ''}`;
+            box.draggable = isPlayerTurn;
+            box.dataset.skillIndex = String(idx);
+
+            box.addEventListener('dragstart', (e) => {
+                if (!isPlayerTurn) return;
+                draggedSkillIndex = idx;
+                box.classList.add('drag-source');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(idx));
+                SoundFX.select();
+
+                document.querySelectorAll('.slot-box.filled-skill').forEach((otherBox) => {
+                    const otherIdx = Number(otherBox.dataset.skillIndex);
+                    const otherSk = player.skills[otherIdx];
+                    if (otherIdx !== idx && canFusePair(sk, otherSk)) {
+                        otherBox.classList.add('drag-target-valid');
+                    }
+                });
+            });
+
+            box.addEventListener('dragend', () => {
+                draggedSkillIndex = null;
+                document.querySelectorAll('.slot-box').forEach((b) => {
+                    b.classList.remove('drag-source', 'drag-target-valid');
+                });
+            });
+
+            box.addEventListener('dragover', (e) => {
+                if (!isPlayerTurn || draggedSkillIndex === null || draggedSkillIndex === idx) return;
+                const srcSk = player.skills[draggedSkillIndex];
+                if (canFusePair(srcSk, sk)) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            });
+
+            box.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const srcIdx = draggedSkillIndex !== null ? draggedSkillIndex : Number(e.dataTransfer.getData('text/plain'));
+                draggedSkillIndex = null;
+                document.querySelectorAll('.slot-box').forEach((b) => {
+                    b.classList.remove('drag-source', 'drag-target-valid');
+                });
+                if (!Number.isNaN(srcIdx) && srcIdx !== idx) {
+                    fuseSkillsByIndices(srcIdx, idx);
+                }
+            });
+
+            const mainArea = document.createElement('div');
+            mainArea.className = `slot-main clickable-skill ${!canUse ? 'disabled-slot' : ''}`;
+            if (canUse) {
+                mainArea.onclick = () => selectAction('skill', sk);
+            }
+            mainArea.onmouseenter = (e) => showTooltip(
+                e,
+                `${sk.name} Lv.${lv}`,
+                `消費MP: ${sk.cost} / 同スキル・同LvをD&Dで合成（Lv+1ごとにMP+10）`,
+                getSkillDetailText(sk),
+                false
+            );
+            mainArea.onmousemove = positionTooltip;
+            mainArea.onmouseleave = hideTooltip;
+
+            mainArea.innerHTML = `
+                <div class="slot-top">
+                    <span class="slot-name">${sk.name}<span class="skill-lv-tag ${lvBadgeClass}">Lv.${lv}</span></span>
+                    <span class="slot-mp">MP ${sk.cost}</span>
+                </div>
+            `;
+            box.appendChild(mainArea);
+
+            const actionsRow = document.createElement('div');
+            actionsRow.className = 'slot-actions';
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'skill-discard-btn';
+            delBtn.innerText = '捨てる';
+            delBtn.disabled = !isPlayerTurn;
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                promptDiscardSkill(idx);
+            };
+
+            actionsRow.appendChild(delBtn);
+            box.appendChild(actionsRow);
+        } else {
+            const p = entry.data;
+            const idx = entry.index;
+
+            box.className = 'slot-box filled-passive';
+
+            const mainArea = document.createElement('div');
+            mainArea.className = 'slot-main';
+            mainArea.onmouseenter = (e) => showTooltip(
+                e,
+                p.name,
+                `パッシブスキル（合成不可）`,
+                p.desc,
+                true
+            );
+            mainArea.onmousemove = positionTooltip;
+            mainArea.onmouseleave = hideTooltip;
+
+            mainArea.innerHTML = `
+                <div class="slot-top">
+                    <span class="slot-name" style="color:#f3e5f5;">${p.name}</span>
+                    <span class="passive-tag">パッシブ</span>
+                </div>
+            `;
+            box.appendChild(mainArea);
+
+            const actionsRow = document.createElement('div');
+            actionsRow.className = 'slot-actions';
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'skill-discard-btn';
+            delBtn.innerText = '捨てる';
+            delBtn.disabled = !isPlayerTurn;
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                promptDiscardPassive(idx);
+            };
+
+            actionsRow.appendChild(delBtn);
+            box.appendChild(actionsRow);
+        }
+
+        gridEl.appendChild(box);
+    }
+
+    document.getElementById('kill-count').innerText = `倒した敵: ${killedCount}体`;
+    document.getElementById('gold-count').innerText = `所持金: ${goldCount} G`;
+
+    renderEnemies();
+}
+
+// 敵描画
+function renderEnemies() {
+    const enemyField = document.getElementById('enemy-field');
+    enemyField.innerHTML = '';
+
+    enemies.forEach((enemy) => {
+        const hasPassives = enemy.passives && enemy.passives.length > 0;
+        const card = document.createElement('div');
+        const isTargetable = isPlayerTurn && selectedAction && 
+            !(selectedAction.type === 'skill' && selectedAction.skillData.targetSelf);
+            
+        card.className = `card ${hasPassives ? 'has-passive-card' : ''} ${isTargetable ? 'targetable' : ''}`;
+        card.id = `enemy-${enemy.fieldId}`;
+        
+        if (isTargetable) {
+            card.onclick = () => handleTargetSelect(enemy);
+        }
+
+        const displayedAtk = getEnemyDisplayedAtk(enemy);
+
+        let successRateHtml = '';
+        if (isPlayerTurn && selectedAction && selectedAction.skillData && selectedAction.skillData.isHunter) {
+            const rate = Math.min(100, Math.floor(15 + (1 - enemy.hp / enemy.maxHp) * 85));
+            successRateHtml = `<div class="success-rate-tag">奪取率: ${rate}%</div>`;
+        }
+
+        const debuffBadgeHtml = enemy.debuffs.length > 0 
+            ? `<div class="debuff-badge">DMG 1/${(enemy.debuffs[0].divisor || 2).toFixed(2).replace(/\.00$/, '')}</div>` 
+            : '';
+
+        const passiveBannerHtml = hasPassives
+            ? `<div class="enemy-passive-banner" data-enemy-field-id="${enemy.fieldId}" data-hover-type="enemy-passive">★ パッシブ: ${enemy.passives.map(p => p.name).join(' / ')}</div>`
+            : `<div class="enemy-passive-banner" style="background:rgba(40,42,58,0.6); color:#777; border-bottom-color:#333; cursor:default;">パッシブ: なし</div>`;
+
+        let skillBoxClass = 'enemy-skill-box';
+        const skLv = (enemy.skill && enemy.skill.level) || 1;
+        let skillText = enemy.skill ? `Skill: ${enemy.skill.name}${skLv > 1 ? ` Lv.${skLv}` : ''}` : 'Skill: なし';
+        let skillColor = '#81c784';
+        let skillHoverAttr = enemy.skill ? `data-enemy-field-id="${enemy.fieldId}" data-hover-type="enemy-skill"` : '';
+
+        if (enemy.stolen) {
+            skillBoxClass += ' stolen-skill';
+            skillText = 'Skill: 奪取済み';
+            skillColor = '#ef5350';
+            skillHoverAttr = '';
+        } else if (!enemy.skill) {
+            skillBoxClass += ' no-skill';
+            skillText = 'Skill: なし';
+            skillColor = '#888';
+            skillHoverAttr = '';
+        }
+
+        card.innerHTML = `
+            <div class="card-header">${enemy.name}</div>
+            ${passiveBannerHtml}
+            <div class="card-image-area" id="enemy-img-${enemy.fieldId}">
+                ${successRateHtml}
+            </div>
+            <div class="card-stats">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>HP</span>
+                    <span>${enemy.hp}/${enemy.maxHp}</span>
+                </div>
+                <div class="stat-bar"><div class="stat-fill-hp" style="width: ${(enemy.hp / enemy.maxHp) * 100}%;"></div></div>
+                <div style="margin-top:4px; color:#ccc;">
+                    攻撃力: ${displayedAtk}
+                </div>
+                <div class="${skillBoxClass}" style="color:${skillColor};" ${skillHoverAttr}>
+                    ${skillText}
+                </div>
+            </div>
+            ${debuffBadgeHtml}
+        `;
+
+        const passiveEl = card.querySelector('[data-hover-type="enemy-passive"]');
+        if (passiveEl) {
+            passiveEl.addEventListener('mouseenter', (e) => {
+                e.stopPropagation();
+                const bodyText = enemy.passives.map(p => `【${p.name}】${p.desc}`).join('\n');
+                showTooltip(e, `${enemy.name} のパッシブ`, `所持数: ${enemy.passives.length}`, bodyText, true);
+            });
+            passiveEl.addEventListener('mousemove', positionTooltip);
+            passiveEl.addEventListener('mouseleave', hideTooltip);
+        }
+
+        const skillEl = card.querySelector('[data-hover-type="enemy-skill"]');
+        if (skillEl && enemy.skill) {
+            skillEl.addEventListener('mouseenter', (e) => {
+                e.stopPropagation();
+                showTooltip(
+                    e,
+                    `${enemy.skill.name} Lv.${skLv}`,
+                    `${enemy.name} のスキル（消費MP: ${enemy.skill.cost}）`,
+                    enemy.skill.desc,
+                    false
+                );
+            });
+            skillEl.addEventListener('mousemove', positionTooltip);
+            skillEl.addEventListener('mouseleave', hideTooltip);
+        }
+
+        enemyField.appendChild(card);
+        setupImage(`enemy-img-${enemy.fieldId}`, enemy.image, enemy.pictogramKey);
+        if (successRateHtml) {
+            const imgArea = document.getElementById(`enemy-img-${enemy.fieldId}`);
+            if (imgArea && !imgArea.querySelector('.success-rate-tag')) {
+                imgArea.insertAdjacentHTML('beforeend', successRateHtml);
+            }
+        }
+    });
+}
+
+// アクション選択
+function selectAction(type, skillData = null) {
+    if (!isPlayerTurn || actionTransitionLock) return;
+
+    if (type === 'skill' && skillData && skillData.targetSelf) {
+        selectedAction = { type, skillData };
+        executePlayerAction(player);
+        return;
+    }
+
+    if (selectedAction && selectedAction.type === type && selectedAction.skillData === skillData) {
+        selectedAction = null;
+        SoundFX.discard();
+    } else {
+        selectedAction = { type, skillData };
+        SoundFX.select();
+    }
+    updateUI();
+}
+
+// ターゲット選択時
+function handleTargetSelect(targetEnemy) {
+    if (!isPlayerTurn || !selectedAction || actionTransitionLock) return;
+    SoundFX.select();
+    executePlayerAction(targetEnemy);
+}
+
+// ターン終了後の進行処理
+function advanceAfterPlayerAction() {
+    checkDeaths();
+    if (enemies.length === 0) {
+        actionTransitionLock = false;
+        handleWaveCleared();
+        return;
+    }
+
+    if (player.hp <= 0) {
+        actionTransitionLock = false;
+        showGameOver();
+        return;
+    }
+
+    setTimeout(() => {
+        actionTransitionLock = false;
+        enemyPhase();
+    }, 550);
+}
+
+// プレイヤー行動実行（1ターン1回行動）
+function executePlayerAction(target) {
+    if (!isPlayerTurn || actionTransitionLock) return;
+    isPlayerTurn = false;
+    actionTransitionLock = true;
+    const action = selectedAction;
+    selectedAction = null;
+    hideTooltip();
+
+    let pendingOverflowItems = [];
+
+    try {
+        if (action && action.type === 'skill' && action.skillData) {
+            const sk = action.skillData;
+            player.mp = Math.max(0, player.mp - (sk.cost || 0));
+
+            if (sk.isHunter) {
+                const hasStealableSkill = !target.stolen && !!target.skill;
+                const hasStealablePassive = target.passives && target.passives.length > 0;
+
+                if (!hasStealableSkill && !hasStealablePassive) {
+                    SoundFX.stealFail();
+                    addLog(`スキルハンター失敗！ ${target.name} から奪える能力はない！`, 'log-system');
+                    showPopup('失敗!', `enemy-${target.fieldId}`, 'popup-system');
+                } else {
+                    const rate = Math.min(100, Math.floor(15 + (1 - target.hp / target.maxHp) * 85));
+                    const roll = Math.random() * 100;
+                    
+                    if (roll <= rate) {
+                        let stolenAny = false;
+                        let simulatedUsedSlots = getUsedSlotsCount();
+
+                        if (hasStealableSkill) {
+                            const stolenSkill = cloneStolenSkill(target.skill);
+                            target.stolen = true;
+                            target.skill = null;
+                            stolenAny = true;
+
+                            if (simulatedUsedSlots < MAX_HOLD_SLOTS) {
+                                player.skills.push(stolenSkill);
+                                simulatedUsedSlots++;
+                                addLog(`スキルハンター成功！ ${target.name} からスキル「${stolenSkill.name}」を奪った！`, 'log-skill');
+                            } else {
+                                pendingOverflowItems.push({ kind: 'skill', data: stolenSkill });
+                                addLog(`スキル「${stolenSkill.name}」を奪ったが、所持枠（${MAX_HOLD_SLOTS}枠）を超過しています。`, 'log-system');
+                            }
+                        }
+
+                        if (hasStealablePassive) {
+                            const remainingPassives = [];
+                            target.passives.forEach(sp => {
+                                const newPassive = { ...sp };
+                                stolenAny = true;
+                                if (simulatedUsedSlots < MAX_HOLD_SLOTS) {
+                                    player.passives.push(newPassive);
+                                    simulatedUsedSlots++;
+                                    addLog(`パッシブ「${newPassive.name}」を奪った！`, 'log-passive');
+                                    if (newPassive.onAcquire) {
+                                        newPassive.onAcquire(player);
+                                    }
+                                } else {
+                                    pendingOverflowItems.push({ kind: 'passive', data: newPassive });
+                                    addLog(`パッシブ「${newPassive.name}」を奪ったが、所持枠（${MAX_HOLD_SLOTS}枠）を超過しています。`, 'log-system');
+                                }
+                            });
+                            target.passives = remainingPassives;
+                        }
+
+                        if (stolenAny) {
+                            SoundFX.stealSuccess();
+                            showPopup('GET!', `enemy-${target.fieldId}`, 'popup-heal');
+                        }
+                    } else {
+                        SoundFX.stealFail();
+                        addLog(`スキルハンター失敗... (成功率:${rate}%)`, 'log-system');
+                        showPopup('失敗...', `enemy-${target.fieldId}`, 'popup-system');
+                    }
+                }
+            } 
+            else if (typeof sk.execute === 'function') {
+                sk.execute(player, target, sk);
+            }
+        }
+
+        checkDebuffHeal(player, enemies);
+    } finally {
+        updateUI();
+    }
+
+    if (pendingOverflowItems.length > 0) {
+        setTimeout(() => {
+            processOverflowQueue(pendingOverflowItems, () => {
+                advanceAfterPlayerAction();
+            });
+        }, 300);
+        return;
+    }
+
+    setTimeout(() => {
+        advanceAfterPlayerAction();
+    }, 450);
+}
+
+// デバフヒール判定（回復耐性も適用）
+function checkDebuffHeal(unit, opponents) {
+    if (!hasPassive(unit, 'debuff_heal')) return;
+    const hasDebuffedOpponent = Array.isArray(opponents) && opponents.some(op => op.debuffs && op.debuffs.length > 0);
+    if (hasDebuffedOpponent) {
+        SoundFX.heal();
+        const healAmt = applyHealResistance(20, unit);
+        unit.hp = Math.min(unit.maxHp, unit.hp + healAmt);
+        addLog(`${unit.name} のパッシブ「デバフヒール」発動！ HPが ${healAmt} 回復！`, 'log-passive');
+        showPopup(`+${healAmt}`, unit.isPlayer ? 'player-card' : `enemy-${unit.fieldId}`, 'popup-heal');
+    }
+}
+
+// 死亡判定（撃破ごとの獲得Gは敵強化段階ごとに+50G）
+function checkDeaths() {
+    const rewardGold = getCurrentEnemyGoldReward();
+    enemies = enemies.filter(e => {
+        if (e.hp <= 0) {
+            SoundFX.enemyKill();
+            goldCount += rewardGold;
+            addLog(`${e.name} を倒した！ ${rewardGold}G を手に入れた！`, 'log-system');
+            killedCount++;
+            return false;
+        }
+        return true;
+    });
+}
+
+// --- ショップ強化システム ---
+const SHOP_ITEMS = [
+    {
+        id: 'heal_hp_50',
+        name: 'HP50回復',
+        cost: 200,
+        desc: '現在HPを50回復する',
+        buy: () => {
+            const before = player.hp;
+            player.hp = Math.min(player.maxHp, player.hp + 50);
+            addLog(`ショップ購入: HPが ${player.hp - before} 回復した！`, 'log-skill');
+        }
+    },
+    {
+        id: 'heal_mp_50',
+        name: 'MP回復',
+        cost: 200,
+        desc: '現在MPを50回復する',
+        buy: () => {
+            const before = player.mp;
+            player.mp = Math.min(player.maxMp, player.mp + 50);
+            addLog(`ショップ購入: MPが ${player.mp - before} 回復した！`, 'log-skill');
+        }
+    },
+    {
+        id: 'up_hp',
+        name: '最大HP +10',
+        cost: 500,
+        desc: '最大HPと現在HPが10上昇',
+        buy: () => {
+            player.maxHp += 10;
+            player.hp += 10;
+            addLog('ショップ強化: 最大HPが 10 上昇した！', 'log-skill');
+        }
+    },
+    {
+        id: 'up_mp',
+        name: '最大MP +10',
+        cost: 500,
+        desc: '最大MPと現在MPが10上昇',
+        buy: () => {
+            player.maxMp += 10;
+            player.mp += 10;
+            addLog('ショップ強化: 最大MPが 10 上昇した！', 'log-skill');
+        }
+    },
+    {
+        id: 'up_skill',
+        name: 'スキル攻撃力 +1',
+        cost: 1000,
+        desc: 'スキルの基本威力の倍率が+1上昇',
+        buy: () => {
+            player.skillAtk += 1;
+            addLog(`ショップ強化: スキル攻撃力倍率が x${player.skillAtk} になった！`, 'log-skill');
+        }
+    }
+];
+
+function openShop(callback) {
+    afterShopCallback = callback;
+    SoundFX.modalToggle();
+    addLog(`--- 敵を ${killedCount}体 討伐！旅の強化ショップが開店した！ ---`, 'log-system');
+    renderShop();
+    document.getElementById('shop-modal').classList.remove('hidden');
+}
+
+function renderShop() {
+    document.getElementById('shop-gold-display').innerText = `${goldCount} G`;
+    const grid = document.getElementById('shop-grid');
+    grid.innerHTML = '';
+
+    SHOP_ITEMS.forEach(item => {
+        const canAfford = goldCount >= item.cost;
+        const div = document.createElement('div');
+        div.className = `shop-item ${canAfford ? '' : 'disabled'}`;
+        div.innerHTML = `
+            <div class="shop-item-header">
+                <span>${item.name}</span>
+                <span class="shop-price">${item.cost} G</span>
+            </div>
+            <div class="shop-desc">${item.desc}</div>
+        `;
+        if (canAfford) {
+            div.onclick = () => {
+                goldCount -= item.cost;
+                SoundFX.shopBuy();
+                item.buy();
+                updateUI();
+                renderShop();
+            };
+        }
+        grid.appendChild(div);
+    });
+}
+
+function closeShop() {
+    SoundFX.modalToggle();
+    document.getElementById('shop-modal').classList.add('hidden');
+    applyPostShopEnemyPowerUp();
+    if (afterShopCallback) {
+        const cb = afterShopCallback;
+        afterShopCallback = null;
+        cb();
+    }
+}
+
+// デバフのターン経過更新
+function processDebuffs(unit) {
+    if (!unit.debuffs || unit.debuffs.length === 0) return;
+    
+    unit.debuffs.forEach(d => d.duration--);
+    const expiredCount = unit.debuffs.filter(d => d.duration <= 0).length;
+    unit.debuffs = unit.debuffs.filter(d => d.duration > 0);
+    
+    if (expiredCount > 0) {
+        addLog(`${unit.name} のデバフ効果が切れた！`, 'log-system');
+    }
+}
+
+// 敵の行動フェーズ
+function enemyPhase() {
+    if (player.hp <= 0 || waveClearedHandled) {
+        actionTransitionLock = false;
+        return;
+    }
+
+    processDebuffs(player);
+
+    const activeEnemies = [...enemies];
+    let delay = 0;
+    activeEnemies.forEach((enemy) => {
+        setTimeout(() => {
+            if (player.hp <= 0 || enemy.hp <= 0 || waveClearedHandled) return;
+
+            processDebuffs(enemy);
+
+            const execFn = enemy.skill ? (enemy.skill.execute || SKILL_EXECUTORS[enemy.skill.id]) : null;
+            const canUseSkill = enemy.skill && !enemy.stolen && typeof execFn === 'function';
+            const useSkill = canUseSkill && Math.random() < 0.5;
+
+            if (useSkill) {
+                if (enemy.skill.id === 'heal') {
+                    const allyTarget = pickAllyHealTarget(enemy);
+                    execFn(enemy, allyTarget, enemy.skill);
+                } else if (enemy.skill.targetSelf) {
+                    execFn(enemy, enemy, enemy.skill);
+                } else {
+                    execFn(enemy, player, enemy.skill);
+                }
+            } else {
+                SoundFX.enemyHit();
+                const damage = computeFinalDamage({
+                    attacker: enemy,
+                    defender: player,
+                    baseAmount: enemy.atk,
+                    isPlayerIncoming: true
+                });
+                player.hp = Math.max(0, player.hp - damage);
+                addLog(`${enemy.name} の通常攻撃！ 盗賊 に ${damage} ダメージ！`, 'log-enemy');
+                showPopup(damage, 'player-card', 'popup-damage');
+                if (damage > 0) {
+                    triggerThornsOnAnyDamage(player, enemy);
+                }
+            }
+
+            if (waveClearedHandled) return;
+
+            checkDebuffHeal(enemy, [player]);
+            updateUI();
+
+            if (player.hp <= 0) {
+                actionTransitionLock = false;
+                showGameOver();
+            }
+        }, delay);
+
+        delay += 800;
+    });
+
+    setTimeout(() => {
+        actionTransitionLock = false;
+        if (player.hp > 0 && !waveClearedHandled) {
+            isPlayerTurn = true;
+            addLog(`あなたのターンです。`, 'log-system');
+            updateUI();
+        }
+    }, delay + 200);
+}
+
+// ヘルパー関数群
+function addLog(msg, className = '') {
+    const log = document.getElementById('log-container');
+    const div = document.createElement('div');
+    div.className = `log-entry ${className}`;
+    div.innerText = msg;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+    document.getElementById('log-container').innerHTML = '';
+}
+
+function showPopup(text, targetId, className) {
+    const targetEl = document.getElementById(targetId);
+    if (!targetEl) return;
+    
+    const rect = targetEl.getBoundingClientRect();
+    const containerRect = document.getElementById('game-container').getBoundingClientRect();
+
+    const popup = document.createElement('div');
+    popup.className = `damage-popup ${className}`;
+    popup.innerText = text;
+    
+    popup.style.left = `${rect.left - containerRect.left + rect.width / 2 - 20}px`;
+    popup.style.top = `${rect.top - containerRect.top + 20}px`;
+
+    document.getElementById('game-container').appendChild(popup);
+    setTimeout(() => popup.remove(), 800);
+}
+
+function showGameOver() {
+    hideTooltip();
+    SoundFX.gameOver();
+    actionTransitionLock = false;
+    overflowQueue = [];
+    onOverflowCompleteCallback = null;
+    pendingDiscardAction = null;
+    document.getElementById('confirm-discard-modal').classList.add('hidden');
+    document.getElementById('overflow-modal').classList.add('hidden');
+    const modal = document.getElementById('game-over-modal');
+    const sub = document.getElementById('game-over-sub');
+
+    modal.classList.remove('hidden');
+    sub.innerText = `倒した敵: ${killedCount}体 / 所持金: ${goldCount}G`;
+}
+
+// ゲーム起動
+window.onload = () => initGame(true);
+</script>
+</body>
+</html>
